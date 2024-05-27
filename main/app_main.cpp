@@ -18,8 +18,15 @@
 #include <app_priv.h>
 #include <app_reset.h>
 
-#include <platform/ESP32/OpenthreadLauncher.h>
+#include "lp_core_main.h"
+#include "ulp_lp_core.h"
+#include "lp_core_i2c.h"
+#include "lp_core_uart.h"
 
+extern const uint8_t lp_core_main_bin_start[] asm("_binary_lp_core_main_bin_start");
+extern const uint8_t lp_core_main_bin_end[]   asm("_binary_lp_core_main_bin_end");
+
+#include <platform/ESP32/OpenthreadLauncher.h>
 
 #include <app/server/CommissioningWindowManager.h>
 #include <app/server/Server.h>

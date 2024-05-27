@@ -22,7 +22,7 @@ set(EXTRA_COMPONENT_DIRS
     "${ESP_MATTER_PATH}/components"
     ${extra_components_dirs_append})
 
-project(light)
+project(window_door_sensor)
 
 # WARNING: This is just an example for using key for decrypting the encrypted OTA image
 # Please do not use it as is.
