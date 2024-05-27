@@ -18,18 +18,21 @@
 #include <app_priv.h>
 #include <app_reset.h>
 
+#include <stdio.h>
 #include "lp_core_main.h"
 #include "ulp_lp_core.h"
 #include "lp_core_i2c.h"
 #include "lp_core_uart.h"
 
-extern const uint8_t lp_core_main_bin_start[] asm("_binary_lp_core_main_bin_start");
-extern const uint8_t lp_core_main_bin_end[]   asm("_binary_lp_core_main_bin_end");
-
 #include <platform/ESP32/OpenthreadLauncher.h>
 
 #include <app/server/CommissioningWindowManager.h>
+
 #include <app/server/Server.h>
+
+
+extern const uint8_t lp_core_main_bin_start[] asm("_binary_lp_core_main_bin_start");
+extern const uint8_t lp_core_main_bin_end[]   asm("_binary_lp_core_main_bin_end");
 
 static const char *TAG = "app_main";
 uint16_t light_endpoint_id = 0;
@@ -50,6 +53,64 @@ extern const char decryption_key_end[] asm("_binary_esp_image_encryption_key_pem
 static const char *s_decryption_key = decryption_key_start;
 static const uint16_t s_decryption_key_len = decryption_key_end - decryption_key_start;
 #endif // CONFIG_ENABLE_ENCRYPTED_OTA
+
+static void lp_uart_init(void)
+{
+    lp_core_uart_cfg_t cfg;
+    cfg.uart_pin_cfg.tx_io_num = GPIO_NUM_5; 
+    cfg.uart_pin_cfg.rx_io_num = GPIO_NUM_4;
+    cfg.uart_pin_cfg.rts_io_num = GPIO_NUM_2;
+    cfg.uart_pin_cfg.cts_io_num = GPIO_NUM_3;
+    cfg.uart_proto_cfg.baud_rate = 115200;
+    cfg.uart_proto_cfg.data_bits = UART_DATA_8_BITS;
+    cfg.uart_proto_cfg.parity = UART_PARITY_DISABLE;
+    cfg.uart_proto_cfg.stop_bits = UART_STOP_BITS_1;
+    cfg.uart_proto_cfg.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+    cfg.uart_proto_cfg.rx_flow_ctrl_thresh = 0;
+    cfg.lp_uart_source_clk = LP_UART_SCLK_DEFAULT;
+
+    ESP_ERROR_CHECK(lp_core_uart_init(&cfg));
+
+    printf("LP UART initialized successfully\n");
+}
+
+static void lp_i2c_init(void)
+{
+    esp_err_t ret = ESP_OK;
+
+    /* Initialize LP I2C with default configuration */
+    lp_core_i2c_cfg_t i2c_cfg;
+    i2c_cfg.i2c_pin_cfg.sda_io_num = GPIO_NUM_6;
+    i2c_cfg.i2c_pin_cfg.scl_io_num = GPIO_NUM_7;
+    i2c_cfg.i2c_pin_cfg.sda_pullup_en = true;
+    i2c_cfg.i2c_pin_cfg.scl_pullup_en = true;
+    i2c_cfg.i2c_timing_cfg.clk_speed_hz = 400000;
+    i2c_cfg.i2c_src_clk = LP_I2C_SCLK_LP_FAST;
+
+    ret = lp_core_i2c_master_init(LP_I2C_NUM_0, (const lp_core_i2c_cfg_t*)&i2c_cfg);
+    if (ret != ESP_OK) {
+        printf("LP I2C init failed\n");
+        abort();
+    }
+    printf("LP I2C initialized successfully\n");
+}
+
+static void lp_core_init(void)
+{
+    /* Set LP core wakeup source as the HP CPU */
+    ulp_lp_core_cfg_t cfg = {
+        .wakeup_source = ULP_LP_CORE_WAKEUP_SOURCE_LP_TIMER,
+        .lp_timer_sleep_duration_us = 1000000,
+    };
+
+    /* Load LP core firmware */
+    ESP_ERROR_CHECK(ulp_lp_core_load_binary(lp_core_main_bin_start, (lp_core_main_bin_end - lp_core_main_bin_start)));
+
+    /* Run LP core */
+    ESP_ERROR_CHECK(ulp_lp_core_run(&cfg));
+
+    printf("LP core loaded with firmware and running successfully\n");
+}
 
 static void app_event_cb(const ChipDeviceEvent *event, intptr_t arg)
 {
@@ -158,6 +219,13 @@ extern "C" void app_main()
 
     /* Initialize the ESP NVS layer */
     nvs_flash_init();
+
+    /* Initialize LP_I2C from the main processor */
+    lp_i2c_init();
+    lp_uart_init();
+
+    /* Load LP Core binary and start the coprocessor */
+    lp_core_init();
 
     /* Initialize driver */
     app_driver_handle_t light_handle = app_driver_light_init();
