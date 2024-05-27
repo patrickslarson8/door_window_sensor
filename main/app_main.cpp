@@ -17,9 +17,9 @@
 #include <common_macros.h>
 #include <app_priv.h>
 #include <app_reset.h>
-#if CHIP_DEVICE_CONFIG_ENABLE_THREAD
+
 #include <platform/ESP32/OpenthreadLauncher.h>
-#endif
+
 
 #include <app/server/CommissioningWindowManager.h>
 #include <app/server/Server.h>
@@ -200,7 +200,7 @@ extern "C" void app_main()
     ESP_LOGI(TAG, "Window sensor created with endpoint_id %d", window_endpoint_id);
 
 
-#if CHIP_DEVICE_CONFIG_ENABLE_THREAD
+
     /* Set OpenThread platform config */
     esp_openthread_platform_config_t config = {
         .radio_config = ESP_OPENTHREAD_DEFAULT_RADIO_CONFIG(),
@@ -208,7 +208,7 @@ extern "C" void app_main()
         .port_config = ESP_OPENTHREAD_DEFAULT_PORT_CONFIG(),
     };
     set_openthread_platform_config(&config);
-#endif
+
 
     /* Matter start */
     err = esp_matter::start(app_event_cb);
