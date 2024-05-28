@@ -70,3 +70,6 @@ const bmi_160_register read_anymotion_tripped_mask = {0x1C, 0x04};  // 0bxxxxx1x
 const bmi_160_register read_low_g_tripped_mask = {0x1D, 0x08};      // 0bxxxx1xxx
 const bmi_160_register read_temperature_0_mask = {0x20, 0xFF};
 const bmi_160_register read_temperature_1_mask = {0x21, 0xFF};
+
+/* variables to share with HP core */
+bool message_received_test_123;

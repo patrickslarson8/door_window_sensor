@@ -5,7 +5,7 @@ set_property(TARGET ${COMPONENT_LIB} PROPERTY CXX_STANDARD 17)
 target_compile_options(${COMPONENT_LIB} PRIVATE "-DCHIP_HAVE_CONFIG_H")
 
 # # Register the component
-# idf_component_register(SRCS "lp_uart_main.c"
+# idf_component_register(SRCS "app_main.cpp" "lp_uart_main.c"
 #                        INCLUDE_DIRS ""
 #                        REQUIRES ulp)
 

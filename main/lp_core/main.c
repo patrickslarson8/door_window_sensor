@@ -1,9 +1,3 @@
-/*
- * SPDX-FileCopyrightText: 2023 Espressif Systems (Shanghai) CO LTD
- *
- * SPDX-License-Identifier: Apache-2.0
- */
-
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -25,6 +19,13 @@
 #define REGISTER_READ_SIZE 1
 #define INTERRUPT_CHECK_PERIOD_uS 100000
 
+bool sensor_1_movement = false;
+bool sensor_1_low_g = false;
+bool sensor_1_disconnect = false;
+bool sensor_2_movement = false;
+bool sensor_2_low_g = false;
+bool sensor_2_disconnect = true; // Must be true at first to trigger programming sequence
+bool message_received = true;
 
 esp_err_t write_register(const uint16_t address, const bmi_160_register *reg){
     uint8_t buffer[2];
@@ -87,14 +88,8 @@ esp_err_t init_bmi(const uint16_t address){
 
 int main (void)
 {
-    bool anymotion_1 = false;
-    bool low_g_1 = false;
-    bool was_disconnected_1 = false;
-
-    bool anymotion_2 = false;
-    bool low_g_2 = false;
-    bool was_disconnected_2 = true;
     esp_err_t err = ESP_OK;
+    message_received = false; // stop compiler from optimizing this away
 
     while(1){
         // if (was_disconnected_1){
@@ -102,10 +97,10 @@ int main (void)
         //     if (err != ESP_OK) {continue;}
         //     was_disconnected_1 = false;
         // }
-        if (was_disconnected_2){
+        if (sensor_2_disconnect){
             err = init_bmi(BMI160_ADDRESS_2);
             if (err != ESP_OK) {continue;}
-            was_disconnected_2 = false;
+            sensor_2_disconnect = false;
         }
 
         // err = check_register_mask(BMI160_ADDRESS_1, &read_anymotion_tripped_mask, &anymotion_1);
@@ -115,11 +110,11 @@ int main (void)
         //     anymotion_1 = false;
         // }
 
-        err = check_register_mask(BMI160_ADDRESS_2, &read_anymotion_tripped_mask, &anymotion_2);
-        if (err != ESP_OK) {was_disconnected_2 = true; continue;}
-        if (anymotion_2){
+        err = check_register_mask(BMI160_ADDRESS_2, &read_anymotion_tripped_mask, &sensor_2_movement);
+        if (err != ESP_OK) {sensor_2_disconnect = true; continue;}
+        if (sensor_2_movement){
             lp_core_printf("Anymotion tripped\r\n");
-            anymotion_2 = false;
+            // sensor_2_movement = false;
         }
 
         // err = check_register_mask(BMI160_ADDRESS_1, &read_low_g_tripped_mask, &low_g_1);
@@ -129,12 +124,14 @@ int main (void)
         //     low_g_1 = false;
         // }
 
-        err = check_register_mask(BMI160_ADDRESS_2, &read_low_g_tripped_mask, &low_g_2);
-        if (err != ESP_OK) {was_disconnected_2 = true; continue;}
-        if (low_g_2){
+        err = check_register_mask(BMI160_ADDRESS_2, &read_low_g_tripped_mask, &sensor_2_low_g);
+        if (err != ESP_OK) {sensor_2_disconnect = true; continue;}
+        if (sensor_2_low_g){
             lp_core_printf("low g tripped\r\n");
-            low_g_2 = false;
+            // low_g_2 = false;
         }
+
+        // todo: if message received, reset bit
 
         ulp_lp_core_delay_us(INTERRUPT_CHECK_PERIOD_uS);
     };

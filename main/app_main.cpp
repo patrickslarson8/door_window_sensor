@@ -312,4 +312,11 @@ extern "C" void app_main()
 #endif
     esp_matter::console::init();
 #endif
+
+    while(1){
+        if ((bool)ulp_sensor_2_movement){
+            printf("movement from lp core reported by hp core");
+            (bool) ulp_message_received = true; // todo, fix this
+        }
+    }
 }
