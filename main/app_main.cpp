@@ -312,11 +312,33 @@ extern "C" void app_main()
 #endif
     esp_matter::console::init();
 #endif
-
+    const uart_port_t uart_num = UART_NUM_1;
+    uart_config_t uart_config = {
+    .baud_rate = 115200,
+    .data_bits = UART_DATA_8_BITS,
+    .parity = UART_PARITY_DISABLE,
+    .stop_bits = UART_STOP_BITS_1,
+    .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+    .rx_flow_ctrl_thresh = 122,
+    };
+    ESP_ERROR_CHECK(uart_param_config(uart_num, &uart_config));
+    // Set UART pins(TX: IO4, RX: IO5, RTS: IO18, CTS: IO19)
+    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, 10, 11, 18, 19));
+    // Setup UART buffered IO with event queue
+    const int uart_buffer_size = (1024 * 2);
+    QueueHandle_t uart_queue;
+    // Install UART driver using an event queue here
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, uart_buffer_size, \
+                                            uart_buffer_size, 10, &uart_queue, 0));
+    uint8_t data[128];
+    int length = 0;
+    
     while(1){
-        if ((bool)ulp_sensor_2_movement){
-            printf("movement from lp core reported by hp core");
-            (bool) ulp_message_received = true; // todo, fix this
+        ESP_ERROR_CHECK(uart_get_buffered_data_len(uart_num, (size_t*)&length));
+        if (length > 0){
+            printf("%d received", length);
+            uart_read_bytes(uart_num, data, length, 100);
+            uart_flush_input(UART_NUM_1);
         }
-    }
+    }   
 }

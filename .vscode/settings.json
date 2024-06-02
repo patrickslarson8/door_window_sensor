@@ -6,6 +6,7 @@
     "idf.flashType": "UART",
     "idf.port": "/dev/ttyACM0",
     "files.associations": {
-        "*.ipp": "cpp"
+        "*.ipp": "cpp",
+        "ulp_lp_core_utils.h": "c"
     }
 }
