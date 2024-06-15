@@ -19,10 +19,9 @@
 #include <app_reset.h>
 
 #include <stdio.h>
-#include "lp_core_main.h"
+// #include "lp_core_main.h"
 #include "ulp_lp_core.h"
 #include "lp_core_i2c.h"
-#include "lp_core_uart.h"
 
 #include <platform/ESP32/OpenthreadLauncher.h>
 
@@ -38,6 +37,7 @@ static const char *TAG = "app_main";
 uint16_t light_endpoint_id = 0;
 uint16_t door_endpoint_id = 1;
 uint16_t window_endpoint_id = 2;
+static portMUX_TYPE lp_msg_spinlock = portMUX_INITIALIZER_UNLOCKED;
 
 using namespace esp_matter;
 using namespace esp_matter::attribute;
@@ -54,25 +54,6 @@ static const char *s_decryption_key = decryption_key_start;
 static const uint16_t s_decryption_key_len = decryption_key_end - decryption_key_start;
 #endif // CONFIG_ENABLE_ENCRYPTED_OTA
 
-static void lp_uart_init(void)
-{
-    lp_core_uart_cfg_t cfg;
-    cfg.uart_pin_cfg.tx_io_num = GPIO_NUM_5; 
-    cfg.uart_pin_cfg.rx_io_num = GPIO_NUM_4;
-    cfg.uart_pin_cfg.rts_io_num = GPIO_NUM_2;
-    cfg.uart_pin_cfg.cts_io_num = GPIO_NUM_3;
-    cfg.uart_proto_cfg.baud_rate = 115200;
-    cfg.uart_proto_cfg.data_bits = UART_DATA_8_BITS;
-    cfg.uart_proto_cfg.parity = UART_PARITY_DISABLE;
-    cfg.uart_proto_cfg.stop_bits = UART_STOP_BITS_1;
-    cfg.uart_proto_cfg.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-    cfg.uart_proto_cfg.rx_flow_ctrl_thresh = 0;
-    cfg.lp_uart_source_clk = LP_UART_SCLK_DEFAULT;
-
-    ESP_ERROR_CHECK(lp_core_uart_init(&cfg));
-
-    printf("LP UART initialized successfully\n");
-}
 
 static void lp_i2c_init(void)
 {
@@ -110,6 +91,15 @@ static void lp_core_init(void)
     ESP_ERROR_CHECK(ulp_lp_core_run(&cfg));
 
     printf("LP core loaded with firmware and running successfully\n");
+}
+
+void lp_msg_callback(void *arg, void *data){
+    gpio_set_level(MP_GPIO_DRIVE, 1); // telling lp we're reading
+    taskENTER_CRITICAL(&lp_msg_spinlock);
+    uint32_t msg_out = ulp_shared_out;
+    taskEXIT_CRITICAL(&lp_msg_spinlock);
+    gpio_set_level(MP_GPIO_DRIVE, 1); // telling lp we're done
+    ESP_LOGI(TAG, "lp core said: %d\n", msg_out);
 }
 
 static void app_event_cb(const ChipDeviceEvent *event, intptr_t arg)
@@ -222,7 +212,9 @@ extern "C" void app_main()
 
     /* Initialize LP_I2C from the main processor */
     lp_i2c_init();
-    lp_uart_init();
+
+    // gpio network
+
 
     /* Load LP Core binary and start the coprocessor */
     lp_core_init();
@@ -312,33 +304,8 @@ extern "C" void app_main()
 #endif
     esp_matter::console::init();
 #endif
-    const uart_port_t uart_num = UART_NUM_1;
-    uart_config_t uart_config = {
-    .baud_rate = 115200,
-    .data_bits = UART_DATA_8_BITS,
-    .parity = UART_PARITY_DISABLE,
-    .stop_bits = UART_STOP_BITS_1,
-    .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-    .rx_flow_ctrl_thresh = 122,
-    };
-    ESP_ERROR_CHECK(uart_param_config(uart_num, &uart_config));
-    // Set UART pins(TX: IO4, RX: IO5, RTS: IO18, CTS: IO19)
-    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, 10, 11, 18, 19));
-    // Setup UART buffered IO with event queue
-    const int uart_buffer_size = (1024 * 2);
-    QueueHandle_t uart_queue;
-    // Install UART driver using an event queue here
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, uart_buffer_size, \
-                                            uart_buffer_size, 10, &uart_queue, 0));
-    uint8_t data[128];
-    int length = 0;
-    
-    while(1){
-        ESP_ERROR_CHECK(uart_get_buffered_data_len(uart_num, (size_t*)&length));
-        if (length > 0){
-            printf("%d received", length);
-            uart_read_bytes(uart_num, data, length, 100);
-            uart_flush_input(UART_NUM_1);
-        }
-    }   
+
+    printf("sending 1 to lp core\n");
+    ulp_shared_in = 1;
+    gpio_set_level(MP_GPIO_DRIVE, 1);
 }

@@ -33,7 +33,7 @@ const bmi_160_register write_motion_settings_1 = {0x62, 0x10};     // anymotion 
 
 /* Store in an array for easier writing */
 #define BMI_CONFIG_SIZE 20
-bmi_160_register bmi_config [BMI_CONFIG_SIZE] = {
+bmi_160_register default_bmi_config [BMI_CONFIG_SIZE] = {
 write_accel_settings_0,
 write_accel_settings_1,
 write_interrupt_eng_0,

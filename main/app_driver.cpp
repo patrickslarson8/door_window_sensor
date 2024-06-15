@@ -11,6 +11,8 @@
 #include <string.h>
 #include <esp_matter.h>
 #include "bsp/esp-bsp.h"
+#include "driver/gpio.h"
+#include "driver/rtc_io.h"
 
 #include <app_priv.h>
 
@@ -205,6 +207,37 @@ app_driver_handle_t app_driver_button_init()
     return (app_driver_handle_t)btns[0];
 }
 
+void app_driver_lp_gpio_init(){
+    rtc_gpio_init((gpio_num_t)LP_GPIO_DRIVE);
+    rtc_gpio_set_direction((gpio_num_t)LP_GPIO_DRIVE, RTC_GPIO_MODE_OUTPUT_ONLY);
+    rtc_gpio_pulldown_dis((gpio_num_t)LP_GPIO_DRIVE);
+    rtc_gpio_pullup_dis((gpio_num_t)LP_GPIO_DRIVE);
+
+    rtc_gpio_init((gpio_num_t)LP_GPIO_DRIVEN);
+    rtc_gpio_set_direction((gpio_num_t)LP_GPIO_DRIVEN, RTC_GPIO_MODE_INPUT_ONLY);
+    rtc_gpio_pulldown_en((gpio_num_t)LP_GPIO_DRIVEN);
+    rtc_gpio_pullup_dis((gpio_num_t)LP_GPIO_DRIVEN);
+}
+
+void app_driver_mp_gpio_init(){
+    gpio_config_t drive_cfg = {};
+    drive_cfg.intr_type = GPIO_INTR_DISABLE;
+    drive_cfg.mode = GPIO_MODE_OUTPUT;
+    drive_cfg.pin_bit_mask = MP_GPIO_DRIVE_MASK;
+    drive_cfg.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    drive_cfg.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config(&drive_cfg);
+
+    gpio_config_t driven_cfg = {};
+    driven_cfg.intr_type = GPIO_INTR_POSEDGE;
+    driven_cfg.mode = GPIO_MODE_INPUT;
+    driven_cfg.pin_bit_mask = MP_GPIO_DRIVEN_MASK;
+    driven_cfg.pull_down_en = GPIO_PULLDOWN_ENABLE;
+    driven_cfg.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config(&driven_cfg);
+}
+
+
 
 static void app_driver_door_opened_cb(void *arg, void *data)
 {   
@@ -256,7 +289,4 @@ app_driver_handle_t app_driver_door_init(){
 }
 
 
-// bool app_driver_is_door_open(){
-//     return (bool) gpio_get_level((door_sensor_gpio));
-// }
 

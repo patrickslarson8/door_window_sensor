@@ -7,6 +7,11 @@
     "idf.port": "/dev/ttyACM0",
     "files.associations": {
         "*.ipp": "cpp",
-        "ulp_lp_core_utils.h": "c"
+        "ulp_lp_core_utils.h": "c",
+        "semaphore.h": "c",
+        "semphr.h": "c",
+        "queue.h": "c",
+        "freertos.h": "c",
+        "ulp_lp_core_uart.h": "c"
     }
 }

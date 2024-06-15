@@ -12,6 +12,8 @@
 #include <esp_matter.h>
 #include <hal/gpio_types.h>
 #include <iot_button.h>
+#include "driver/gpio.h"
+#include "lp_core_main.h"
 
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD
 #include "esp_openthread_types.h"
@@ -38,6 +40,14 @@
 /** GPIO Pin Assignments for sensors **/
 #define DOOR_GPIO_PIN 2
 #define WINDOW_GPIO_PIN 3
+
+/** **/
+#define MP_GPIO_DRIVEN GPIO_NUM_10
+#define MP_GPIO_DRIVE GPIO_NUM_11
+#define MP_GPIO_DRIVEN_MASK (1ULL<<MP_GPIO_DRIVEN)
+#define MP_GPIO_DRIVE_MASK (1ULL<<MP_GPIO_DRIVE)
+#define LP_GPIO_DRIVEN 5
+#define LP_GPIO_DRIVE 4
 
 const button_config_t door_btn_cfg = {
     .type = BUTTON_TYPE_GPIO,
