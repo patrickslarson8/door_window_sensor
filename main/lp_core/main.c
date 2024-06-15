@@ -103,7 +103,7 @@ uint32_t get_time_elapsed(uint32_t previous_time){
     return current_time - previous_time;
 }
 
-init_bmi(){
+uint8_t init_bmi(){
     esp_err_t err = ESP_OK;
     for (int i = 0; i < shared_num_bmi; i++){
         uint16_t address = shared_bmi_addresses[i];

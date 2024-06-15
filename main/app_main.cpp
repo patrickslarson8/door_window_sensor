@@ -17,9 +17,10 @@
 #include <common_macros.h>
 #include <app_priv.h>
 #include <app_reset.h>
+#include <bmi160_defs.h>
 
 #include <stdio.h>
-// #include "lp_core_main.h"
+#include "lp_core_main.h"
 #include "ulp_lp_core.h"
 #include "lp_core_i2c.h"
 
@@ -37,7 +38,6 @@ static const char *TAG = "app_main";
 uint16_t light_endpoint_id = 0;
 uint16_t door_endpoint_id = 1;
 uint16_t window_endpoint_id = 2;
-static portMUX_TYPE lp_msg_spinlock = portMUX_INITIALIZER_UNLOCKED;
 
 using namespace esp_matter;
 using namespace esp_matter::attribute;
@@ -94,12 +94,23 @@ static void lp_core_init(void)
 }
 
 void lp_msg_callback(void *arg, void *data){
-    gpio_set_level(MP_GPIO_DRIVE, 1); // telling lp we're reading
-    taskENTER_CRITICAL(&lp_msg_spinlock);
-    uint32_t msg_out = ulp_shared_out;
-    taskEXIT_CRITICAL(&lp_msg_spinlock);
-    gpio_set_level(MP_GPIO_DRIVE, 1); // telling lp we're done
-    ESP_LOGI(TAG, "lp core said: %d\n", msg_out);
+
+
+}
+
+void load_bmi_defaults(){
+
+    bmi_160_register *shared_bmi_config = (bmi_160_register *)&ulp_shared_bmi_config;
+    for (int i = 0; i < BMI_CONFIG_SIZE; i++){
+        shared_bmi_config[i] = default_bmi_config[i];
+    }
+    // ulp_shared_bmi_addresses;                  todo: assign all of these to the shared memory 
+    // ulp_shared_num_bmi;
+    // ulp_shared_register_masks;
+    // ulp_shared_num_masks;
+    // ulp_shared_timers;
+    // ulp_shared_num_timers;
+    // ulp_shared_deadman_threshold;
 }
 
 static void app_event_cb(const ChipDeviceEvent *event, intptr_t arg)
@@ -306,6 +317,6 @@ extern "C" void app_main()
 #endif
 
     printf("sending 1 to lp core\n");
-    ulp_shared_in = 1;
+
     gpio_set_level(MP_GPIO_DRIVE, 1);
 }
