@@ -23,6 +23,7 @@
 #include "lp_core_main.h"
 #include "ulp_lp_core.h"
 #include "lp_core_i2c.h"
+#include "lp_core_uart.h"
 
 #include <platform/ESP32/OpenthreadLauncher.h>
 
@@ -46,6 +47,9 @@ using namespace chip::app::Clusters;
 
 constexpr auto k_timeout_seconds = 300;
 
+uint32_t lp_status;
+uint32_t lp_address_given;
+
 #if CONFIG_ENABLE_ENCRYPTED_OTA
 extern const char decryption_key_start[] asm("_binary_esp_image_encryption_key_pem_start");
 extern const char decryption_key_end[] asm("_binary_esp_image_encryption_key_pem_end");
@@ -54,6 +58,25 @@ static const char *s_decryption_key = decryption_key_start;
 static const uint16_t s_decryption_key_len = decryption_key_end - decryption_key_start;
 #endif // CONFIG_ENABLE_ENCRYPTED_OTA
 
+static void lp_uart_init(void)
+{
+    lp_core_uart_cfg_t cfg;
+    cfg.uart_pin_cfg.tx_io_num = GPIO_NUM_5; 
+    cfg.uart_pin_cfg.rx_io_num = GPIO_NUM_4;
+    cfg.uart_pin_cfg.rts_io_num = GPIO_NUM_2;
+    cfg.uart_pin_cfg.cts_io_num = GPIO_NUM_3;
+    cfg.uart_proto_cfg.baud_rate = 115200;
+    cfg.uart_proto_cfg.data_bits = UART_DATA_8_BITS;
+    cfg.uart_proto_cfg.parity = UART_PARITY_DISABLE;
+    cfg.uart_proto_cfg.stop_bits = UART_STOP_BITS_1;
+    cfg.uart_proto_cfg.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+    cfg.uart_proto_cfg.rx_flow_ctrl_thresh = 0;
+    cfg.lp_uart_source_clk = LP_UART_SCLK_DEFAULT;
+
+    ESP_ERROR_CHECK(lp_core_uart_init(&cfg));
+
+    printf("LP UART initialized successfully\n");
+}
 
 static void lp_i2c_init(void)
 {
@@ -70,10 +93,10 @@ static void lp_i2c_init(void)
 
     ret = lp_core_i2c_master_init(LP_I2C_NUM_0, (const lp_core_i2c_cfg_t*)&i2c_cfg);
     if (ret != ESP_OK) {
-        printf("LP I2C init failed\n");
+        ESP_LOGI(TAG,"LP I2C init failed\n");
         abort();
     }
-    printf("LP I2C initialized successfully\n");
+    ESP_LOGI(TAG, "LP I2C initialized successfully\n");
 }
 
 static void lp_core_init(void)
@@ -93,24 +116,62 @@ static void lp_core_init(void)
     printf("LP core loaded with firmware and running successfully\n");
 }
 
-void lp_msg_callback(void *arg, void *data){
-
-
+static void lp_msg_callback(void *arg, void *data){
+    ESP_LOGI(TAG, "Message from LP");
+    //drive pin high
+    gpio_set_level(MP_GPIO_DRIVE, 1);
+    // copy memory
+    lp_status = ulp_shared_out_status;
+    lp_address_given = ulp_shared_out_address;
+    // drive pin low
+    gpio_set_level(MP_GPIO_DRIVE, 0);
+    // perform actions
+    ESP_LOGI(TAG, "LP core says %d at %d\n", (int)lp_status, (int)lp_address_given);
 }
 
 void load_bmi_defaults(){
-
     bmi_160_register *shared_bmi_config = (bmi_160_register *)&ulp_shared_bmi_config;
     for (int i = 0; i < BMI_CONFIG_SIZE; i++){
         shared_bmi_config[i] = default_bmi_config[i];
     }
-    // ulp_shared_bmi_addresses;                  todo: assign all of these to the shared memory 
-    // ulp_shared_num_bmi;
-    // ulp_shared_register_masks;
-    // ulp_shared_num_masks;
-    // ulp_shared_timers;
-    // ulp_shared_num_timers;
-    // ulp_shared_deadman_threshold;
+    uint8_t *shared_bmi_addresses = (uint8_t *)&ulp_shared_bmi_addresses;
+        for (int i = 0; i < LP_NUM_ADDRESSES; i++){
+        shared_bmi_addresses[i] = lp_addresses[i];
+    }
+    uint8_t *shared_num_bmi = (uint8_t *)&ulp_shared_num_bmi;
+    *shared_num_bmi = LP_NUM_ADDRESSES;
+    bmi_160_register *shared_register_masks = (bmi_160_register*)&ulp_shared_register_masks;
+    shared_register_masks[0] = read_anymotion_tripped_mask;
+    shared_register_masks[1] = read_low_g_tripped_mask;
+    uint8_t *shared_num_masks = (uint8_t *)&ulp_shared_num_masks;
+    *shared_num_masks = 2;
+
+    uint8_t *shared_timers = (uint8_t*)&ulp_shared_timer_addresses;
+    uint8_t addr_0 = TIMER_ADDRESS_0;
+    uint8_t addr_1 = TIMER_ADDRESS_1;
+    uint8_t addr_2 = TIMER_ADDRESS_2;
+    shared_timers[0] = addr_0;
+    shared_timers[1] = addr_1;
+    shared_timers[2] = addr_2;
+
+    uint8_t *shared_num_timers = (uint8_t *)&ulp_shared_num_timers;
+    *shared_num_timers = 3;
+
+    ulp_shared_deadman_threshold = LP_WATCHDOG_THRESH;
+    // volatile uint32_t *shared_watchdog_threshold = &ulp_shared_deadman_threshold;
+    // *shared_watchdog_threshold = LP_WATCHDOG_THRESH;
+    printf("dogaddress:%d, shareddogvalue:%d\n\r",
+     (int) &ulp_shared_deadman_threshold,
+     (int) ulp_shared_deadman_threshold);
+    // printf("address0:%d, num:%d, mask0:%d, num:%d, timer0:%d, num:%d, dog:%d\n\r",
+    //     (int)shared_bmi_addresses[0],
+    //     (int)*shared_num_bmi,
+    //     (int)shared_register_masks[0].reg,
+    //     (int)*shared_num_masks,
+    //     (int)shared_timers[0],
+    //     (int)*shared_num_timers,
+    //     (int)*shared_watchdog_threshold);
+
 }
 
 static void app_event_cb(const ChipDeviceEvent *event, intptr_t arg)
@@ -223,11 +284,13 @@ extern "C" void app_main()
 
     /* Initialize LP_I2C from the main processor */
     lp_i2c_init();
+    lp_uart_init();
 
     // gpio network
-
+    app_driver_mp_gpio_init(lp_msg_callback);
 
     /* Load LP Core binary and start the coprocessor */
+    load_bmi_defaults();
     lp_core_init();
 
     /* Initialize driver */
@@ -316,7 +379,4 @@ extern "C" void app_main()
     esp_matter::console::init();
 #endif
 
-    printf("sending 1 to lp core\n");
-
-    gpio_set_level(MP_GPIO_DRIVE, 1);
 }

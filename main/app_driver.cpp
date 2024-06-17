@@ -219,7 +219,7 @@ void app_driver_lp_gpio_init(){
     rtc_gpio_pullup_dis((gpio_num_t)LP_GPIO_DRIVEN);
 }
 
-void app_driver_mp_gpio_init(){
+app_driver_handle_t app_driver_mp_gpio_init(button_cb_t handler){
     gpio_config_t drive_cfg = {};
     drive_cfg.intr_type = GPIO_INTR_DISABLE;
     drive_cfg.mode = GPIO_MODE_OUTPUT;
@@ -228,13 +228,16 @@ void app_driver_mp_gpio_init(){
     drive_cfg.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config(&drive_cfg);
 
-    gpio_config_t driven_cfg = {};
-    driven_cfg.intr_type = GPIO_INTR_POSEDGE;
-    driven_cfg.mode = GPIO_MODE_INPUT;
-    driven_cfg.pin_bit_mask = MP_GPIO_DRIVEN_MASK;
-    driven_cfg.pull_down_en = GPIO_PULLDOWN_ENABLE;
-    driven_cfg.pull_up_en = GPIO_PULLUP_DISABLE;
-    gpio_config(&driven_cfg);
+    // gpio_config_t driven_cfg = {};
+    // driven_cfg.intr_type = GPIO_INTR_POSEDGE;
+    // driven_cfg.mode = GPIO_MODE_INPUT;
+    // driven_cfg.pin_bit_mask = MP_GPIO_DRIVEN_MASK;
+    // driven_cfg.pull_down_en = GPIO_PULLDOWN_ENABLE;
+    // driven_cfg.pull_up_en = GPIO_PULLUP_DISABLE;
+    // gpio_config(&driven_cfg);
+    button_handle_t handle = iot_button_create(&lp_interface_btn_cfg);
+    iot_button_register_cb(handle, BUTTON_PRESS_DOWN, handler, NULL);
+    return (app_driver_handle_t) handle;
 }
 
 

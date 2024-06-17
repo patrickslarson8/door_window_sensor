@@ -46,8 +46,8 @@
 #define MP_GPIO_DRIVE GPIO_NUM_11
 #define MP_GPIO_DRIVEN_MASK (1ULL<<MP_GPIO_DRIVEN)
 #define MP_GPIO_DRIVE_MASK (1ULL<<MP_GPIO_DRIVE)
-#define LP_GPIO_DRIVEN 5
-#define LP_GPIO_DRIVE 4
+#define LP_GPIO_DRIVEN 2
+#define LP_GPIO_DRIVE 3
 
 const button_config_t door_btn_cfg = {
     .type = BUTTON_TYPE_GPIO,
@@ -56,6 +56,16 @@ const button_config_t door_btn_cfg = {
     .gpio_button_config = {
         .gpio_num = DOOR_GPIO_PIN,
         .active_level = 0,
+    },
+};
+
+const button_config_t lp_interface_btn_cfg = {
+    .type = BUTTON_TYPE_GPIO,
+    .long_press_time = 1000,
+    .short_press_time = 50,
+    .gpio_button_config = {
+        .gpio_num = MP_GPIO_DRIVEN,
+        .active_level = 1,
     },
 };
 
@@ -83,6 +93,7 @@ app_driver_handle_t app_driver_door_init();
 bool app_driver_get_button_state(app_driver_handle_t handle);
 void app_driver_set_door_opened();
 void app_driver_set_door_closed();
+app_driver_handle_t app_driver_mp_gpio_init(button_cb_t handler);
 
 /** Driver Update
  *

@@ -12,6 +12,9 @@
         "semphr.h": "c",
         "queue.h": "c",
         "freertos.h": "c",
-        "ulp_lp_core_uart.h": "c"
-    }
+        "ulp_lp_core_uart.h": "c",
+        "compare": "cpp",
+        "cstdint": "cpp"
+    },
+    "cmake.configureOnOpen": false
 }

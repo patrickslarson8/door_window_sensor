@@ -1,6 +1,19 @@
 #pragma once
 #include <inttypes.h>
 
+#define LP_NUM_ADDRESSES 2
+#define LP_ADDRESS_1 0x69
+#define LP_ADDRESS_2 0x69
+
+#define MP_NUM_ADDRESSES 2
+#define MP_ADDRESS_1 0x68
+#define MP_ADDRESS_2 0x69
+
+#define TIMER_ADDRESS_0 0x18
+#define TIMER_ADDRESS_1 0x19
+#define TIMER_ADDRESS_2 0x1A
+#define LP_WATCHDOG_THRESH 5128  // approx 200 ms
+
 /******************************************/ 
 /* Accelerometer Registers Configuration **/
 /******************************************/ 
@@ -9,7 +22,6 @@ typedef struct {
     uint8_t value;
 } bmi_160_register;
 
-// Define macros for values to write
 #define WRITE_ACCEL_SETTINGS_0_REG    0x40
 #define WRITE_ACCEL_SETTINGS_0_VALUE  0x2B
 
@@ -93,6 +105,11 @@ bmi_160_register default_bmi_config[BMI_CONFIG_SIZE] = {
     { WRITE_MOTION_THRESH_REG,       WRITE_MOTION_THRESH_VALUE },
     { WRITE_MOTION_SETTINGS_0_REG,   WRITE_MOTION_SETTINGS_0_VALUE },
     { WRITE_MOTION_SETTINGS_1_REG,   WRITE_MOTION_SETTINGS_1_VALUE }
+};
+
+uint8_t lp_addresses[LP_NUM_ADDRESSES] = {
+    LP_ADDRESS_1,
+    LP_ADDRESS_2
 };
 
 /* Commands */
