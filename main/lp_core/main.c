@@ -34,10 +34,13 @@ volatile int shared_out_status = -2;                     // -1 for normal, -2 fo
 volatile uint32_t shared_out_address = 0;
 
 esp_err_t write_register(const uint16_t address, const bmi_160_register *reg){
+    esp_err_t err;
     uint8_t buffer[2];
     buffer[0] = reg->reg;
     buffer[1] = reg->value;
-    return lp_core_i2c_master_write_to_device(LP_I2C_NUM_0, address, &buffer, REGISTER_WRITE_SIZE, LP_I2C_TRANS_TIMEOUT_CYCLES);
+    err = lp_core_i2c_master_write_to_device(LP_I2C_NUM_0, address, &buffer, REGISTER_WRITE_SIZE, LP_I2C_TRANS_TIMEOUT_CYCLES);
+    lp_core_printf("writing reg: %X, val: %x\r\n", reg->reg, reg->value);
+    return err;
 }
 
 esp_err_t read_register(const uint16_t address, uint8_t reg, uint8_t *buffer){
@@ -45,6 +48,7 @@ esp_err_t read_register(const uint16_t address, uint8_t reg, uint8_t *buffer){
     err = lp_core_i2c_master_write_to_device(LP_I2C_NUM_0, address, &reg, REGISTER_READ_SIZE, LP_I2C_TRANS_TIMEOUT_CYCLES);
     if (err != ESP_OK) { return err; }
     err = lp_core_i2c_master_read_from_device(LP_I2C_NUM_0, address, &buffer, REGISTER_READ_SIZE, LP_I2C_TRANS_TIMEOUT_CYCLES);
+    ulp_lp_core_delay_cycles(CYCLES_TO_WAIT);
     return err;
 }
 
@@ -54,8 +58,11 @@ esp_err_t compare_register(const uint16_t address, const bmi_160_register *reg){
     uint8_t address_reg = reg->reg;
     uint8_t value = reg->value;
     err = lp_core_i2c_master_write_to_device(LP_I2C_NUM_0, address, &address_reg, REGISTER_READ_SIZE, LP_I2C_TRANS_TIMEOUT_CYCLES);
+    ulp_lp_core_delay_cycles(CYCLES_TO_WAIT);
     if (err != ESP_OK) { return err; }
     err = lp_core_i2c_master_read_from_device(LP_I2C_NUM_0, address, &buffer, REGISTER_READ_SIZE, LP_I2C_TRANS_TIMEOUT_CYCLES);
+    ulp_lp_core_delay_cycles(CYCLES_TO_WAIT);
+    lp_core_printf("comparing...reg: %X, value: %X read val: %X\r\n",address_reg, value, buffer);
     if (buffer != reg->value) { return ESP_ERR_INVALID_RESPONSE;}
     return err;
 }
@@ -66,7 +73,9 @@ esp_err_t check_register_mask(const uint16_t address, const bmi_160_register *re
     uint8_t reg_num = reg->reg;
     uint8_t mask = reg->value;
     err = lp_core_i2c_master_write_to_device(LP_I2C_NUM_0, address, &reg_num, REGISTER_READ_SIZE, LP_I2C_TRANS_TIMEOUT_CYCLES);
+    ulp_lp_core_delay_cycles(CYCLES_TO_WAIT);
     err = lp_core_i2c_master_read_from_device(LP_I2C_NUM_0, address, &buffer, REGISTER_READ_SIZE, LP_I2C_TRANS_TIMEOUT_CYCLES);
+    ulp_lp_core_delay_cycles(CYCLES_TO_WAIT);
     uint8_t compared = buffer & mask;
     *return_value = (compared != 0);
     return err;
@@ -82,6 +91,7 @@ esp_err_t configure_bmi(const uint16_t address){
 }
 
 esp_err_t validate_bmi_configuration(const uint16_t address){
+    lp_core_printf("validating...\r\n");
     esp_err_t error = ESP_OK;
     for (int i = 0; i < BMI_CONFIG_SIZE; i++){
         error = compare_register(address, &shared_bmi_config[i]);
@@ -109,10 +119,9 @@ esp_err_t time_for_checkin(uint32_t* time, uint32_t watchdog_threshold, bool* re
 
 esp_err_t init_bmi(){
     esp_err_t err = ESP_ERR_NOT_FINISHED;
-    lp_core_printf("sharednumbmi:%d\r\n", (int)shared_num_bmi);
+    lp_core_printf("init_bmi\r\n");
     for (int i = 0; i < shared_num_bmi; i++){
         uint16_t address = shared_bmi_addresses[i];
-        lp_core_printf("address:%d\r\n", (int)address);
         err = configure_bmi(address);
         if (err != ESP_OK){return err;}
         err = validate_bmi_configuration(address);
@@ -136,9 +145,11 @@ void init_gpio(){
 
 int main (void)
 {
-    lp_core_printf("dogvalue:%d, dogaddress:%d\n\r",
-     (int) shared_deadman_threshold,
-     (int) &shared_deadman_threshold);
+    ulp_lp_core_delay_cycles(20000000); // 1 sec
+    lp_core_printf("Waiting for hp core\r\n");
+    while(ulp_lp_core_gpio_get_level(GPIO_DRIVEN)){
+        ulp_lp_core_delay_cycles(10000);
+    }
     lp_core_printf("address0:%d, num:%d, mask0:%d, num:%d, timer0:%d, num:%d, dog:%d\n\r",
         (int)shared_bmi_addresses[0],
         (int)shared_num_bmi,

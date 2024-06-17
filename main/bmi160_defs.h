@@ -1,7 +1,9 @@
 #pragma once
 #include <inttypes.h>
 
-#define LP_NUM_ADDRESSES 2
+#define CYCLES_TO_WAIT 80
+
+#define LP_NUM_ADDRESSES 1
 #define LP_ADDRESS_1 0x69
 #define LP_ADDRESS_2 0x69
 
@@ -108,8 +110,8 @@ bmi_160_register default_bmi_config[BMI_CONFIG_SIZE] = {
 };
 
 uint8_t lp_addresses[LP_NUM_ADDRESSES] = {
-    LP_ADDRESS_1,
-    LP_ADDRESS_2
+    LP_ADDRESS_1
+    // ,LP_ADDRESS_2
 };
 
 /* Commands */

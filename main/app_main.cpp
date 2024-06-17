@@ -110,26 +110,13 @@ static void lp_core_init(void)
     /* Load LP core firmware */
     ESP_ERROR_CHECK(ulp_lp_core_load_binary(lp_core_main_bin_start, (lp_core_main_bin_end - lp_core_main_bin_start)));
 
+    // set gpio high
+    gpio_set_level(MP_GPIO_DRIVE, 1);
+
     /* Run LP core */
     ESP_ERROR_CHECK(ulp_lp_core_run(&cfg));
 
-    printf("LP core loaded with firmware and running successfully\n");
-}
-
-static void lp_msg_callback(void *arg, void *data){
-    ESP_LOGI(TAG, "Message from LP");
-    //drive pin high
-    gpio_set_level(MP_GPIO_DRIVE, 1);
-    // copy memory
-    lp_status = ulp_shared_out_status;
-    lp_address_given = ulp_shared_out_address;
-    // drive pin low
-    gpio_set_level(MP_GPIO_DRIVE, 0);
-    // perform actions
-    ESP_LOGI(TAG, "LP core says %d at %d\n", (int)lp_status, (int)lp_address_given);
-}
-
-void load_bmi_defaults(){
+    // load variables
     bmi_160_register *shared_bmi_config = (bmi_160_register *)&ulp_shared_bmi_config;
     for (int i = 0; i < BMI_CONFIG_SIZE; i++){
         shared_bmi_config[i] = default_bmi_config[i];
@@ -158,21 +145,37 @@ void load_bmi_defaults(){
     *shared_num_timers = 3;
 
     ulp_shared_deadman_threshold = LP_WATCHDOG_THRESH;
-    // volatile uint32_t *shared_watchdog_threshold = &ulp_shared_deadman_threshold;
-    // *shared_watchdog_threshold = LP_WATCHDOG_THRESH;
-    printf("dogaddress:%d, shareddogvalue:%d\n\r",
-     (int) &ulp_shared_deadman_threshold,
-     (int) ulp_shared_deadman_threshold);
-    // printf("address0:%d, num:%d, mask0:%d, num:%d, timer0:%d, num:%d, dog:%d\n\r",
-    //     (int)shared_bmi_addresses[0],
-    //     (int)*shared_num_bmi,
-    //     (int)shared_register_masks[0].reg,
-    //     (int)*shared_num_masks,
-    //     (int)shared_timers[0],
-    //     (int)*shared_num_timers,
-    //     (int)*shared_watchdog_threshold);
+    volatile uint32_t *shared_watchdog_threshold = &ulp_shared_deadman_threshold;
+    *shared_watchdog_threshold = LP_WATCHDOG_THRESH;
 
+    printf("address0:%d, num:%d, mask0:%d, num:%d, timer0:%d, num:%d, dog:%d\n\r",
+        (int)shared_bmi_addresses[0],
+        (int)*shared_num_bmi,
+        (int)shared_register_masks[0].reg,
+        (int)*shared_num_masks,
+        (int)shared_timers[0],
+        (int)*shared_num_timers,
+        (int)*shared_watchdog_threshold);
+
+    // set gpio low
+    gpio_set_level(MP_GPIO_DRIVE, 0);
+
+    printf("LP core loaded with firmware and running successfully\n");
 }
+
+static void lp_msg_callback(void *arg, void *data){
+    ESP_LOGI(TAG, "Message from LP");
+    //drive pin high
+    gpio_set_level(MP_GPIO_DRIVE, 1);
+    // copy memory
+    lp_status = ulp_shared_out_status;
+    lp_address_given = ulp_shared_out_address;
+    // drive pin low
+    gpio_set_level(MP_GPIO_DRIVE, 0);
+    // perform actions
+    ESP_LOGI(TAG, "LP core says %d at %d\n", (int)lp_status, (int)lp_address_given);
+}
+
 
 static void app_event_cb(const ChipDeviceEvent *event, intptr_t arg)
 {
@@ -290,7 +293,7 @@ extern "C" void app_main()
     app_driver_mp_gpio_init(lp_msg_callback);
 
     /* Load LP Core binary and start the coprocessor */
-    load_bmi_defaults();
+    // load_bmi_defaults();
     lp_core_init();
 
     /* Initialize driver */
