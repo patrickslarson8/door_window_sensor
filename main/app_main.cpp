@@ -47,8 +47,9 @@ using namespace chip::app::Clusters;
 
 constexpr auto k_timeout_seconds = 300;
 
-uint32_t lp_status;
-uint32_t lp_address_given;
+int lp_status;
+int lp_address_given;
+esp_err_t lp_esp_err;
 
 #if CONFIG_ENABLE_ENCRYPTED_OTA
 extern const char decryption_key_start[] asm("_binary_esp_image_encryption_key_pem_start");
@@ -88,7 +89,7 @@ static void lp_i2c_init(void)
     i2c_cfg.i2c_pin_cfg.scl_io_num = GPIO_NUM_7;
     i2c_cfg.i2c_pin_cfg.sda_pullup_en = true;
     i2c_cfg.i2c_pin_cfg.scl_pullup_en = true;
-    i2c_cfg.i2c_timing_cfg.clk_speed_hz = 400000;
+    i2c_cfg.i2c_timing_cfg.clk_speed_hz = 100000;
     i2c_cfg.i2c_src_clk = LP_I2C_SCLK_LP_FAST;
 
     ret = lp_core_i2c_master_init(LP_I2C_NUM_0, (const lp_core_i2c_cfg_t*)&i2c_cfg);
@@ -167,15 +168,20 @@ static void lp_msg_callback(void *arg, void *data){
     ESP_LOGI(TAG, "Message from LP");
     //drive pin high
     gpio_set_level(MP_GPIO_DRIVE, 1);
+    // vTaskDelay(100000);
     // copy memory
-    lp_status = ulp_shared_out_status;
-    lp_address_given = ulp_shared_out_address;
+    lp_status = (int)ulp_shared_out_status;
+    lp_address_given = (int)ulp_shared_out_address;
+    lp_esp_err = (esp_err_t)ulp_shared_esp_err;
     // drive pin low
     gpio_set_level(MP_GPIO_DRIVE, 0);
     // perform actions
     ESP_LOGI(TAG, "LP core says %d at %d\n", (int)lp_status, (int)lp_address_given);
+    if (lp_status == -3){
+        ESP_ERROR_CHECK_WITHOUT_ABORT(lp_esp_err);
+        // esp_err_to_name(lp_esp_err));
+    }
 }
-
 
 static void app_event_cb(const ChipDeviceEvent *event, intptr_t arg)
 {

@@ -14,7 +14,9 @@
         "freertos.h": "c",
         "ulp_lp_core_uart.h": "c",
         "compare": "cpp",
-        "cstdint": "cpp"
+        "cstdint": "cpp",
+        "expected": "c",
+        "__locale": "c"
     },
     "cmake.configureOnOpen": false
 }

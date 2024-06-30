@@ -16,8 +16,8 @@
 #define REGISTER_READ_SIZE 1
 #define INTERRUPT_CHECK_PERIOD_uS 100000
 
-#define GPIO_DRIVE LP_IO_NUM_4
-#define GPIO_DRIVEN LP_IO_NUM_5
+#define GPIO_DRIVE LP_IO_NUM_3
+#define GPIO_DRIVEN LP_IO_NUM_2
 
 /* These will all be set by the MP before the lp core starts */
 volatile bmi_160_register shared_bmi_config[20];     // config will be loaded into all bmi on startup
@@ -30,7 +30,8 @@ volatile uint8_t shared_num_timers;
 volatile uint32_t shared_deadman_threshold;
 
 // set by LP core to send messages back
-volatile int shared_out_status = -2;                     // -1 for normal, -2 for watchdog checkin, pos num for register that was tripped
+volatile int shared_out_status = -2;                 // -1 for normal, -2 for watchdog checkin, -3 for esp err, or pos num for register that was tripped
+volatile esp_err_t shared_esp_err = 0;
 volatile uint32_t shared_out_address = 0;
 
 esp_err_t write_register(const uint16_t address, const bmi_160_register *reg){
@@ -39,7 +40,7 @@ esp_err_t write_register(const uint16_t address, const bmi_160_register *reg){
     buffer[0] = reg->reg;
     buffer[1] = reg->value;
     err = lp_core_i2c_master_write_to_device(LP_I2C_NUM_0, address, &buffer, REGISTER_WRITE_SIZE, LP_I2C_TRANS_TIMEOUT_CYCLES);
-    lp_core_printf("writing reg: %X, val: %x\r\n", reg->reg, reg->value);
+    // lp_core_printf("writing reg: %X, val: %x, err: %x\r\n", reg->reg, reg->value, err);
     return err;
 }
 
@@ -48,7 +49,6 @@ esp_err_t read_register(const uint16_t address, uint8_t reg, uint8_t *buffer){
     err = lp_core_i2c_master_write_to_device(LP_I2C_NUM_0, address, &reg, REGISTER_READ_SIZE, LP_I2C_TRANS_TIMEOUT_CYCLES);
     if (err != ESP_OK) { return err; }
     err = lp_core_i2c_master_read_from_device(LP_I2C_NUM_0, address, &buffer, REGISTER_READ_SIZE, LP_I2C_TRANS_TIMEOUT_CYCLES);
-    ulp_lp_core_delay_cycles(CYCLES_TO_WAIT);
     return err;
 }
 
@@ -58,11 +58,8 @@ esp_err_t compare_register(const uint16_t address, const bmi_160_register *reg){
     uint8_t address_reg = reg->reg;
     uint8_t value = reg->value;
     err = lp_core_i2c_master_write_to_device(LP_I2C_NUM_0, address, &address_reg, REGISTER_READ_SIZE, LP_I2C_TRANS_TIMEOUT_CYCLES);
-    ulp_lp_core_delay_cycles(CYCLES_TO_WAIT);
     if (err != ESP_OK) { return err; }
     err = lp_core_i2c_master_read_from_device(LP_I2C_NUM_0, address, &buffer, REGISTER_READ_SIZE, LP_I2C_TRANS_TIMEOUT_CYCLES);
-    ulp_lp_core_delay_cycles(CYCLES_TO_WAIT);
-    lp_core_printf("comparing...reg: %X, value: %X read val: %X\r\n",address_reg, value, buffer);
     if (buffer != reg->value) { return ESP_ERR_INVALID_RESPONSE;}
     return err;
 }
@@ -84,6 +81,7 @@ esp_err_t check_register_mask(const uint16_t address, const bmi_160_register *re
 esp_err_t configure_bmi(const uint16_t address){
     esp_err_t error;
     for (int i = 0; i < BMI_CONFIG_SIZE; i++){
+        ulp_lp_core_delay_cycles(CYCLES_TO_WAIT);
         error = write_register(address, &shared_bmi_config[i]);
         if (error != ESP_OK) return error;
     }
@@ -91,12 +89,13 @@ esp_err_t configure_bmi(const uint16_t address){
 }
 
 esp_err_t validate_bmi_configuration(const uint16_t address){
-    lp_core_printf("validating...\r\n");
+    // lp_core_printf("validating...");
     esp_err_t error = ESP_OK;
     for (int i = 0; i < BMI_CONFIG_SIZE; i++){
         error = compare_register(address, &shared_bmi_config[i]);
-        if (error != ESP_OK) return error;
+        if (error != ESP_OK) break;
     }
+    // lp_core_printf("err:%x\r\n", error);
     return error;
 }
 
@@ -119,16 +118,16 @@ esp_err_t time_for_checkin(uint32_t* time, uint32_t watchdog_threshold, bool* re
 
 esp_err_t init_bmi(){
     esp_err_t err = ESP_ERR_NOT_FINISHED;
-    lp_core_printf("init_bmi\r\n");
+    // lp_core_printf("init_bmi...");
     for (int i = 0; i < shared_num_bmi; i++){
         uint16_t address = shared_bmi_addresses[i];
         err = configure_bmi(address);
-        if (err != ESP_OK){return err;}
+        if (err != ESP_OK) break;
         err = validate_bmi_configuration(address);
         if (err != ESP_OK){return err;}
         err = write_register(address, &write_cmd_start_accel);
-        if (err != ESP_OK){return err;}
     }
+    // lp_core_printf("err:%x\r\n", err);
     return err;
 }
 
@@ -145,34 +144,40 @@ void init_gpio(){
 
 int main (void)
 {
+    init_gpio();
     ulp_lp_core_delay_cycles(20000000); // 1 sec
-    lp_core_printf("Waiting for hp core\r\n");
+    ulp_lp_core_gpio_get_level(GPIO_DRIVEN);
+    // lp_core_printf("Waiting for hp core\r\n");
     while(ulp_lp_core_gpio_get_level(GPIO_DRIVEN)){
         ulp_lp_core_delay_cycles(10000);
     }
-    lp_core_printf("address0:%d, num:%d, mask0:%d, num:%d, timer0:%d, num:%d, dog:%d\n\r",
-        (int)shared_bmi_addresses[0],
-        (int)shared_num_bmi,
-        (int)shared_register_masks[0].reg,
-        (int)shared_num_masks,
-        (int)shared_timer_addresses[0],
-        (int)shared_num_timers,
-        (int)shared_deadman_threshold);
+    // lp_core_printf("address0:%x, num:%d, mask0:%x, num:%d, timer0:%d, num:%d, dog:%d\n\r",
+    //     (int)shared_bmi_addresses[0],
+    //     (int)shared_num_bmi,
+    //     (int)shared_register_masks[0].reg,
+    //     (int)shared_num_masks,
+    //     (int)shared_timer_addresses[0],
+    //     (int)shared_num_timers,
+    //     (int)shared_deadman_threshold);
     esp_err_t err = ESP_OK;
     bool mask_tripped = false;
     bool checkin_due = false;
     int msg_out = -1;
     uint8_t trouble_address = 0;
     uint32_t time_ticks = 0;
-    // init_gpio();
     err = init_bmi();
 
     while(1){
-        if (err != ESP_OK) break; // quit and let MP restart LP core
+        if (err != ESP_OK){
+        // //  lp_core_printf("err code:%d",err);
+        //  break; // quit and let MP restart LP core
+            msg_out = -3;
+        }    
         if (msg_out != -1){
             lp_core_printf("msg:%d\n\r", (int)msg_out);
             shared_out_status = msg_out;
             shared_out_address = trouble_address;
+            shared_esp_err = err;
             ulp_lp_core_gpio_set_level(GPIO_DRIVE, 1);
             while (!ulp_lp_core_gpio_get_level(GPIO_DRIVEN)); // wait for main processor to acknowledge
             ulp_lp_core_gpio_set_level(GPIO_DRIVE, 0);
@@ -183,7 +188,7 @@ int main (void)
             for (int j = 0; j < shared_num_masks; j++){
                 // If a mask register is tripped, report it back to the main processor to handle
                 err = check_register_mask(shared_bmi_addresses[i], &shared_register_masks[j], &mask_tripped);
-                if (err != ESP_OK) break;
+                if (err != ESP_OK) continue;
                 if (mask_tripped){
                     trouble_address = i;
                     msg_out = j;
@@ -191,14 +196,14 @@ int main (void)
                     continue;
                 }
             }
-            if (err != ESP_OK) break;
+            if (err != ESP_OK) continue;
         }
-        if (err != ESP_OK) break;
+        if (err != ESP_OK) continue;
         err = time_for_checkin(&time_ticks, shared_deadman_threshold, &checkin_due);
-        if (checkin_due){
-            lp_core_printf("watchdog\n\r");
-            msg_out = -2;
-        } 
+        // if (checkin_due){
+        //     lp_core_printf("watchdog\n\r");
+        //     msg_out = -2;
+        // } 
     };
 
     return 0;
