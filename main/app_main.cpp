@@ -176,7 +176,7 @@ static void lp_msg_callback(void *arg, void *data){
     // drive pin low
     gpio_set_level(MP_GPIO_DRIVE, 0);
     // perform actions
-    ESP_LOGI(TAG, "LP core says %d at %d\n", (int)lp_status, (int)lp_address_given);
+    ESP_LOGI(TAG, "LP core says %d at %d", (int)lp_status, (int)lp_address_given);
     if (lp_status == -3){
         ESP_ERROR_CHECK_WITHOUT_ABORT(lp_esp_err);
         // esp_err_to_name(lp_esp_err));

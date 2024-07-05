@@ -28,6 +28,9 @@ volatile uint8_t shared_num_masks;
 volatile uint8_t shared_timer_addresses[3];
 volatile uint8_t shared_num_timers;
 volatile uint32_t shared_deadman_threshold;
+volatile bmi_160_register shared_cmd_start;
+volatile bmi_160_register shared_cmd_reboot;
+
 
 // set by LP core to send messages back
 volatile int shared_out_status = -2;                 // -1 for normal, -2 for watchdog checkin, -3 for esp err, or pos num for register that was tripped
@@ -50,7 +53,7 @@ esp_err_t write_register(const uint16_t address, const bmi_160_register *reg){
     buffer[0] = reg->reg;
     buffer[1] = reg->value;
     err = lp_core_i2c_master_write_to_device(LP_I2C_NUM_0, address, &buffer, REGISTER_WRITE_SIZE, LP_I2C_TRANS_TIMEOUT_CYCLES);
-    // lp_core_printf("writing reg: %X, val: %x, err: %x\r\n", reg->reg, reg->value, err);
+    lp_core_printf("writing reg: %X, val: %x, err: %x\r\n", reg->reg, reg->value, err);
     return err;
 }
 
@@ -59,7 +62,7 @@ esp_err_t read_register(const uint16_t address, uint8_t reg, uint8_t *buffer){
     err = lp_core_i2c_master_write_to_device(LP_I2C_NUM_0, address, &reg, REGISTER_READ_SIZE, LP_I2C_TRANS_TIMEOUT_CYCLES);
     if (err != ESP_OK) { return err; }
     err = lp_core_i2c_master_read_from_device(LP_I2C_NUM_0, address, buffer, REGISTER_READ_SIZE, LP_I2C_TRANS_TIMEOUT_CYCLES);
-    lp_core_printf("read: %x value: %x\r\n", reg, *buffer);
+    // lp_core_printf("read: %x value: %x\r\n", reg, *buffer);
     return err;
 }
 
@@ -90,7 +93,7 @@ esp_err_t check_register_mask(const uint16_t address, const bmi_160_register *re
 esp_err_t configure_bmi(const uint16_t address){
     esp_err_t error;
     for (int i = 0; i < BMI_CONFIG_SIZE; i++){
-        ulp_lp_core_delay_cycles(CYCLES_TO_WAIT);
+        // ulp_lp_core_delay_cycles(CYCLES_TO_WAIT);
         error = write_register(address, &shared_bmi_config[i]);
         if (error != ESP_OK) return error;
     }
@@ -108,9 +111,9 @@ esp_err_t validate_bmi_configuration(const uint16_t address){
     return error;
 }
 
-esp_err_t time_for_checkin(uint32_t* time, uint32_t watchdog_threshold, bool* result){
+esp_err_t time_for_checkin(uint32_t* prev_time, uint32_t watchdog_threshold, bool* result){
     esp_err_t err;
-    uint32_t previous_time = *time;
+    uint32_t time = 0;
     uint8_t buffer;
 
     err = read_register(shared_bmi_addresses[0], shared_timer_addresses[0], &buffer);
@@ -125,12 +128,13 @@ esp_err_t time_for_checkin(uint32_t* time, uint32_t watchdog_threshold, bool* re
     if (err != ESP_OK) return err;
     uint8_t byte3 = buffer;
 
-    time = (uint32_t)byte1 && ((uint32_t)byte2 << 8) && ((uint32_t)byte3 << 16);
+    time = (uint32_t)byte1 | ((uint32_t)byte2 << 8) | ((uint32_t)byte3 << 16);
 
-    if ((time < previous_time) || ((time - previous_time) > watchdog_threshold)){
+    lp_core_printf("prev:%d time:%d\r\n", *prev_time, time);
+    if ((time < *prev_time) || ((time - *prev_time) > watchdog_threshold)){
         *result = true;
+        *prev_time = time;
     }
-    lp_core_printf("1:%x 2:%x 3:%x time: %x\r\n", byte1, byte2, byte3, *time);
     return err;
 }
 
@@ -139,6 +143,9 @@ esp_err_t init_bmi(){
     lp_core_printf("init_bmi...");
     for (int i = 0; i < shared_num_bmi; i++){
         uint16_t address = shared_bmi_addresses[i];
+        err = write_register(address, &write_cmd_reboot);
+        if (err != ESP_OK) break;
+        ulp_lp_core_delay_cycles(100000);
         err = configure_bmi(address);
         if (err != ESP_OK) break;
         err = validate_bmi_configuration(address);
@@ -162,7 +169,7 @@ void init_gpio(){
 
 int main (void)
 {
-    uint32_t time;
+    uint32_t time = 0;
     lp_core_printf("\033[H\033[2J");
     init_gpio();
     ulp_lp_core_delay_cycles(20000000); // 1 sec
@@ -184,7 +191,7 @@ int main (void)
     bool checkin_due = false;
     int msg_out = -1;
     uint8_t trouble_address = 0;
-    uint32_t time_ticks = 0;
+    // uint32_t time_ticks = 0;
     err = init_bmi();
 
     while(1){
@@ -220,10 +227,11 @@ int main (void)
         if (err != ESP_OK) continue;
         err = time_for_checkin(&time, shared_deadman_threshold, &checkin_due);
         ulp_lp_core_delay_cycles(100000);
-        // if (checkin_due){
-            // lp_core_printf("watchdog\n\r");
-            // msg_out = -2;
-        // }
+        if (checkin_due){
+            lp_core_printf("watchdog\n\r");
+            checkin_due = false;
+            msg_out = -2;
+        }
     };
 
     return 0;

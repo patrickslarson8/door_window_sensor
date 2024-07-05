@@ -14,7 +14,7 @@
 #define TIMER_ADDRESS_0 0x18
 #define TIMER_ADDRESS_1 0x19
 #define TIMER_ADDRESS_2 0x1A
-#define LP_WATCHDOG_THRESH 25640  // approx 1s
+#define LP_WATCHDOG_THRESH 50000  // approx 3s
 
 /******************************************/ 
 /* Accelerometer Registers Configuration **/
