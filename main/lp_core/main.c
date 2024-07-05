@@ -215,7 +215,6 @@ int main (void)
             } 
             lp_core_printf("low...\r\n");
             ulp_lp_core_gpio_set_level(GPIO_DRIVE, 0);
-            // while (ulp_lp_core_gpio_get_level(GPIO_DRIVEN) == 1);  // wait for main processor to read
             ulp_lp_core_delay_cycles(2000000);
             msg_out = -1;
         }

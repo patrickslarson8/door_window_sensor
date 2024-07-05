@@ -38,7 +38,10 @@ extern const uint8_t lp_core_main_bin_end[]   asm("_binary_lp_core_main_bin_end"
 static const char *TAG = "app_main";
 uint16_t light_endpoint_id = 0;
 uint16_t door_endpoint_id = 1;
-uint16_t window_endpoint_id = 2;
+uint16_t window_slide_1_endpoint_id = 2;
+uint16_t window_slide_2_endpoint_id = 3;
+uint16_t window_accel_1_endpoint_id = 4;
+uint16_t window_accel_2_endpoint_id = 5;
 
 using namespace esp_matter;
 using namespace esp_matter::attribute;
@@ -301,7 +304,6 @@ extern "C" void app_main()
     app_driver_mp_gpio_init(lp_msg_callback);
 
     /* Load LP Core binary and start the coprocessor */
-    // load_bmi_defaults();
     lp_core_init();
 
     /* Initialize driver */
@@ -339,18 +341,40 @@ extern "C" void app_main()
     attribute::set_deferred_persistence(color_temp_attribute);
 
     // Start my clusters
+    // Door
     contact_sensor::config_t door_config;
     endpoint_t *door_endpoint = contact_sensor::create(node, &door_config, ENDPOINT_FLAG_NONE, NULL);
     ABORT_APP_ON_FAILURE(endpoint != nullptr, ESP_LOGE(TAG, "Failed to create door sensor endpoint"));
     door_endpoint_id = endpoint::get_id(door_endpoint);
     ESP_LOGI(TAG, "Door sensor created with endpoint_id %d", door_endpoint_id);
 
-    contact_sensor::config_t window_config;
-    endpoint_t *window_endpoint = contact_sensor::create(node, &window_config, ENDPOINT_FLAG_NONE, NULL);
+    // Window slide 1
+    contact_sensor::config_t window_config_1;
+    endpoint_t *window_endpoint_1 = contact_sensor::create(node, &window_config_1, ENDPOINT_FLAG_NONE, NULL);
     ABORT_APP_ON_FAILURE(endpoint != nullptr, ESP_LOGE(TAG, "Failed to create window sensor endpoint"));
-    window_endpoint_id = endpoint::get_id(window_endpoint);
-    ESP_LOGI(TAG, "Window sensor created with endpoint_id %d", window_endpoint_id);
+    window_slide_1_endpoint_id = endpoint::get_id(window_endpoint_1);
+    ESP_LOGI(TAG, "Window sensor created with endpoint_id %d", window_slide_1_endpoint_id);
 
+    // Window slide 2
+    contact_sensor::config_t window_config_2;
+    endpoint_t *window_endpoint_2 = contact_sensor::create(node, &window_config_2, ENDPOINT_FLAG_NONE, NULL);
+    ABORT_APP_ON_FAILURE(endpoint != nullptr, ESP_LOGE(TAG, "Failed to create window sensor endpoint"));
+    window_slide_2_endpoint_id = endpoint::get_id(window_endpoint_2);
+    ESP_LOGI(TAG, "Window sensor created with endpoint_id %d", window_slide_2_endpoint_id);
+
+    // Window accel 1
+    contact_sensor::config_t window_accel_config_1;
+    endpoint_t *window_accel_endpoint_1 = contact_sensor::create(node, &window_accel_config_1, ENDPOINT_FLAG_NONE, NULL);
+    ABORT_APP_ON_FAILURE(endpoint != nullptr, ESP_LOGE(TAG, "Failed to create window sensor endpoint"));
+    window_accel_1_endpoint_id = endpoint::get_id(window_accel_endpoint_1);
+    ESP_LOGI(TAG, "Window sensor created with endpoint_id %d", window_accel_1_endpoint_id);
+
+    // Window accel 2
+    contact_sensor::config_t window_accel_config_2;
+    endpoint_t *window_accel_endpoint_2 = contact_sensor::create(node, &window_accel_config_2, ENDPOINT_FLAG_NONE, NULL);
+    ABORT_APP_ON_FAILURE(endpoint != nullptr, ESP_LOGE(TAG, "Failed to create window sensor endpoint"));
+    window_accel_2_endpoint_id = endpoint::get_id(window_accel_endpoint_2);
+    ESP_LOGI(TAG, "Window sensor created with endpoint_id %d", window_accel_2_endpoint_id);
 
 
     /* Set OpenThread platform config */
