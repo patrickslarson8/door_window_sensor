@@ -165,15 +165,17 @@ static void lp_core_init(void)
 }
 
 static void lp_msg_callback(void *arg, void *data){
-    ESP_LOGI(TAG, "Message from LP");
     //drive pin high
-    gpio_set_level(MP_GPIO_DRIVE, 1);
-    // vTaskDelay(100000);
+    // vTaskDelay(200);
     // copy memory
     lp_status = (int)ulp_shared_out_status;
     lp_address_given = (int)ulp_shared_out_address;
     lp_esp_err = (esp_err_t)ulp_shared_esp_err;
+    ESP_LOGI(TAG, "Message from LP. High.");
+    gpio_set_level(MP_GPIO_DRIVE, 1);
+    while(gpio_get_level(MP_GPIO_DRIVEN) == 1); // wait for LP to acknowledge before moving on
     // drive pin low
+    ESP_LOGI(TAG, "Message from LP. Low.");
     gpio_set_level(MP_GPIO_DRIVE, 0);
     // perform actions
     ESP_LOGI(TAG, "LP core says %d at %d", (int)lp_status, (int)lp_address_given);

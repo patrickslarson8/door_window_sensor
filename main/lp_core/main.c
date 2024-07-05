@@ -130,7 +130,7 @@ esp_err_t time_for_checkin(uint32_t* prev_time, uint32_t watchdog_threshold, boo
 
     time = (uint32_t)byte1 | ((uint32_t)byte2 << 8) | ((uint32_t)byte3 << 16);
 
-    lp_core_printf("prev:%d time:%d\r\n", *prev_time, time);
+    // lp_core_printf("prev:%d time:%d\r\n", *prev_time, time);
     if ((time < *prev_time) || ((time - *prev_time) > watchdog_threshold)){
         *result = true;
         *prev_time = time;
@@ -173,7 +173,6 @@ int main (void)
     lp_core_printf("\033[H\033[2J");
     init_gpio();
     ulp_lp_core_delay_cycles(20000000); // 1 sec
-    ulp_lp_core_gpio_get_level(GPIO_DRIVEN);
     lp_core_printf("Waiting for hp core\r\n");
     while(ulp_lp_core_gpio_get_level(GPIO_DRIVEN)){
         ulp_lp_core_delay_cycles(10000);
@@ -191,7 +190,6 @@ int main (void)
     bool checkin_due = false;
     int msg_out = -1;
     uint8_t trouble_address = 0;
-    // uint32_t time_ticks = 0;
     err = init_bmi();
 
     while(1){
@@ -200,14 +198,25 @@ int main (void)
             msg_out = -3;
         }    
         if (msg_out != -1){
-            lp_core_printf("msg:%d\n\r", (int)msg_out);
+            lp_core_printf("msg:%d...", (int)msg_out);
             shared_out_status = msg_out;
             shared_out_address = trouble_address;
             shared_esp_err = err;
+            lp_core_printf("high...");
             ulp_lp_core_gpio_set_level(GPIO_DRIVE, 1);
-            while (ulp_lp_core_gpio_get_level(GPIO_DRIVEN) == 0); // wait for main processor to acknowledge
+            while (ulp_lp_core_gpio_get_level(GPIO_DRIVEN) == 0){ // wait for main processor to acknowledge
+                ulp_lp_core_delay_cycles(1000000);
+                if (ulp_lp_core_gpio_get_level(GPIO_DRIVEN) == 0){ // try again if no response
+                    lp_core_printf("waiting...");
+                    ulp_lp_core_gpio_set_level(GPIO_DRIVE, 0);
+                    ulp_lp_core_delay_cycles(1000000);
+                    ulp_lp_core_gpio_set_level(GPIO_DRIVE, 1);
+                    }
+            } 
+            lp_core_printf("low...\r\n");
             ulp_lp_core_gpio_set_level(GPIO_DRIVE, 0);
-            while (ulp_lp_core_gpio_get_level(GPIO_DRIVEN) == 1);  // wait for main processor to read
+            // while (ulp_lp_core_gpio_get_level(GPIO_DRIVEN) == 1);  // wait for main processor to read
+            ulp_lp_core_delay_cycles(2000000);
             msg_out = -1;
         }
         for (int i = 0; i < shared_num_bmi; i++){
@@ -219,14 +228,16 @@ int main (void)
                     trouble_address = i;
                     msg_out = j;
                     lp_core_printf("mask tripped on %d num %d\n\r", (int)trouble_address, (int)msg_out);
+                    err = write_register(shared_bmi_addresses[i], &write_cmd_reset_iterrupts);
+                    ulp_lp_core_delay_cycles(10000);
                     continue;
                 }
             }
             if (err != ESP_OK) continue;
         }
         if (err != ESP_OK) continue;
-        err = time_for_checkin(&time, shared_deadman_threshold, &checkin_due);
         ulp_lp_core_delay_cycles(100000);
+        err = time_for_checkin(&time, shared_deadman_threshold, &checkin_due);
         if (checkin_due){
             lp_core_printf("watchdog\n\r");
             checkin_due = false;
